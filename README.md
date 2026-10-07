@@ -1,94 +1,79 @@
 # Real RISC-V Cores — Understanding Microarchitecture
 
-> A detailed study of real RISC-V processor implementations, from tiny cores such as SERV and PicoRV32 to pipelined, out-of-order, generated, and complete SoC-based designs.
+> A study of real RISC-V processor implementations, from tiny cores to pipelined, out-of-order, generated, and complete SoC-based designs.
 
 ---
 
 ## Table of Contents
 
 1. [Introduction](#1-introduction)
-2. [What is RISC-V?](#2-what-is-risc-v)
-3. [ISA vs Microarchitecture](#3-isa-vs-microarchitecture)
-4. [Why RISC-V is a Perfect Specimen for Studying Microarchitecture](#4-why-risc-v-is-a-perfect-specimen-for-studying-microarchitecture)
-5. [Understanding a CPU Before Studying Real Cores](#5-understanding-a-cpu-before-studying-real-cores)
+2. [RISC-V: ISA vs Microarchitecture](#2-risc-v-isa-vs-microarchitecture)
+3. [Why RISC-V is a Perfect Specimen](#3-why-risc-v-is-a-perfect-specimen)
+4. [Basic CPU Microarchitecture](#4-basic-cpu-microarchitecture)
+5. [Tiny Cores: SERV and PicoRV32](#5-tiny-cores-serv-and-picorv32)
 
-   * [5.1 Instruction Execution](#51-instruction-execution)
-   * [5.2 Datapath](#52-datapath)
-   * [5.3 Control Unit](#53-control-unit)
-6. [The Spectrum of RISC-V Cores](#6-the-spectrum-of-risc-v-cores)
-7. [Tiny Cores: SERV and PicoRV32](#7-tiny-cores-serv-and-picorv32)
+   * [SERV](#51-serv)
+   * [PicoRV32](#52-picorv32)
+   * [SERV vs PicoRV32](#53-serv-vs-picorv32)
+6. [In-Order Pipelines](#6-in-order-pipelines)
 
-   * [7.1 SERV](#71-serv)
-   * [7.2 Why SERV is Bit-Serial](#72-why-serv-is-bit-serial)
-   * [7.3 Advantages and Disadvantages of SERV](#73-advantages-and-disadvantages-of-serv)
-   * [7.4 PicoRV32](#74-picorv32)
-   * [7.5 SERV vs PicoRV32](#75-serv-vs-picorv32)
-8. [In-Order Pipelined Cores](#8-in-order-pipelined-cores)
+   * [Pipelining](#61-pipelining)
+   * [In-Order Execution](#62-in-order-execution)
+   * [Pipeline Hazards](#63-pipeline-hazards)
+   * [Rocket](#64-rocket)
+   * [CVA6](#65-cva6)
+7. [Out-of-Order Cores](#7-out-of-order-cores)
 
-   * [8.1 What is Pipelining?](#81-what-is-pipelining)
-   * [8.2 Why Do We Need Pipelines?](#82-why-do-we-need-pipelines)
-   * [8.3 What Does In-Order Mean?](#83-what-does-in-order-mean)
-   * [8.4 Pipeline Hazards](#84-pipeline-hazards)
-   * [8.5 Rocket](#85-rocket)
-   * [8.6 CVA6](#86-cva6)
-9. [Out-of-Order Cores](#9-out-of-order-cores)
+   * [Why Out-of-Order?](#71-why-out-of-order)
+   * [Register Renaming](#72-register-renaming)
+   * [Issue Queue](#73-issue-queue)
+   * [Reorder Buffer](#74-reorder-buffer)
+   * [Speculative Execution](#75-speculative-execution)
+   * [BOOM](#76-boom)
+   * [XiangShan](#77-xiangshan)
+8. [Generators](#8-generators)
 
-   * [9.1 Why Out-of-Order Execution?](#91-why-out-of-order-execution)
-   * [9.2 Instruction-Level Parallelism](#92-instruction-level-parallelism)
-   * [9.3 Register Renaming](#93-register-renaming)
-   * [9.4 Issue Queue](#94-issue-queue)
-   * [9.5 Reorder Buffer](#95-reorder-buffer)
-   * [9.6 Speculative Execution](#96-speculative-execution)
-   * [9.7 BOOM](#97-boom)
-   * [9.8 XiangShan](#98-xiangshan)
-10. [Generators](#10-generators)
-
-    * [10.1 What is a Hardware Generator?](#101-what-is-a-hardware-generator)
-    * [10.2 Chisel](#102-chisel)
-    * [10.3 Rocket Chip](#103-rocket-chip)
-    * [10.4 Chipyard](#104-chipyard)
-11. [From CPU Core to SoC](#11-from-cpu-core-to-soc)
-12. [Comparing the Real RISC-V Cores](#12-comparing-the-real-risc-v-cores)
-13. [The Complete Microarchitecture Journey](#13-the-complete-microarchitecture-journey)
-14. [Important Concepts](#14-important-concepts)
-15. [Questions I Should Be Able to Answer](#15-questions-i-should-be-able-to-answer)
-16. [Conclusion](#16-conclusion)
-17. [References](#17-references)
+   * [Hardware Generators](#81-hardware-generators)
+   * [Chisel](#82-chisel)
+   * [Rocket Chip](#83-rocket-chip)
+   * [Chipyard](#84-chipyard)
+9. [From Core to SoC](#9-from-core-to-soc)
+10. [Comparing the Real Cores](#10-comparing-the-real-cores)
+11. [The Complete Microarchitecture Journey](#11-the-complete-microarchitecture-journey)
+12. [Key Concepts](#12-key-concepts)
+13. [Questions to Test My Understanding](#13-questions-to-test-my-understanding)
+14. [Conclusion](#14-conclusion)
+15. [References](#15-references)
 
 ---
 
 # 1. Introduction
 
-RISC-V is an **Instruction Set Architecture (ISA)**.
+RISC-V is an **Instruction Set Architecture (ISA)** rather than one particular processor.
 
-However, RISC-V does not describe one particular processor.
+An ISA defines what instructions a processor understands and what those instructions are supposed to do. It does not prescribe the exact internal hardware used to execute them.
 
-Instead, many completely different processors can implement the same RISC-V ISA.
-
-For example:
+This allows many completely different processors to implement the same RISC-V ISA.
 
 ```text
                          RISC-V ISA
                               |
-            +-----------------+------------------+
-            |                 |                  |
-            ↓                 ↓                  ↓
-          SERV             Rocket              BOOM
-            |                 |                  |
-       Tiny / serial      In-order          Out-of-order
-            |              pipeline             |
-            |                 |                  |
-            +-----------------+------------------+
+             +----------------+----------------+
+             |                |                |
+             ↓                ↓                ↓
+           SERV             Rocket            BOOM
+             |                |                |
+        Bit-serial        In-order          Out-of-order
+             |             pipeline             |
+             +----------------+----------------+
                               |
                        Same ISA visible
                         to the software
 ```
 
-This makes RISC-V extremely useful for understanding **microarchitecture**.
+This makes RISC-V an excellent platform for studying **microarchitecture**.
 
-We can keep the instruction set the same while changing the internal organization of the processor.
-
-This repository studies real RISC-V cores in increasing order of complexity:
+This repository follows the progression:
 
 ```text
 Tiny Core
@@ -104,13 +89,15 @@ Hardware Generator
 Complete SoC
 ```
 
+The objective is not simply to memorize processor names, but to understand **why their architectures become more complex and what problem each new technique solves**.
+
 ---
 
-# 2. What is RISC-V?
+# 2. RISC-V: ISA vs Microarchitecture
 
-RISC-V is an open Instruction Set Architecture based on the **Reduced Instruction Set Computer (RISC)** philosophy.
+## What is an ISA?
 
-An ISA defines the interface between software and hardware.
+An **Instruction Set Architecture** is the interface between software and hardware.
 
 For example:
 
@@ -118,60 +105,32 @@ For example:
 add x3, x1, x2
 ```
 
-The RISC-V ISA tells us that the result of this instruction should be:
+The RISC-V ISA defines that this instruction performs:
 
 ```text
 x3 = x1 + x2
 ```
 
-The ISA also defines:
+The ISA defines things such as:
 
-* registers
 * instructions
+* registers
 * instruction formats
 * memory operations
-* branch instructions
+* branches
 * exceptions
 * privilege modes
-* encoding rules
+* architectural behavior
 
-But the ISA does **not** tell us exactly how the hardware should perform the operation.
-
-That is the job of microarchitecture.
-
----
-
-# 3. ISA vs Microarchitecture
-
-This distinction is the foundation of this entire topic.
-
-## ISA
-
-ISA answers:
+It answers:
 
 > **What should the processor do?**
 
-For example:
-
-```text
-ADD
-LW
-SW
-BEQ
-AND
-OR
-XOR
-```
-
-The ISA defines what these instructions mean.
-
 ---
 
-## Microarchitecture
+## What is Microarchitecture?
 
-Microarchitecture answers:
-
-> **How does the processor actually do it?**
+Microarchitecture describes the internal hardware organization used to implement the ISA.
 
 For:
 
@@ -179,78 +138,69 @@ For:
 add x3, x1, x2
 ```
 
-the microarchitecture decides:
+the microarchitecture determines:
 
 ```text
 How are x1 and x2 read?
         ↓
-Which ALU performs the addition?
+Which hardware performs the addition?
         ↓
 When is the addition performed?
         ↓
 Where is the result stored?
         ↓
-When is x3 updated?
+When does x3 become available?
 ```
+
+It answers:
+
+> **How does the processor do it?**
 
 ---
 
-## Simple analogy
+## Simple Analogy
 
 Think of the ISA as a **recipe**.
 
-The recipe says:
+The recipe tells you what food should be produced.
 
-> "Make a cake."
-
-Microarchitecture is the actual kitchen arrangement:
+Microarchitecture is the actual kitchen:
 
 ```text
-Oven
-Mixer
-Bowl
-Ingredients
-Chef
-Timing
+Recipe → What must be produced
+
+Kitchen → How it is produced
 ```
 
-Two kitchens can follow the same recipe but use completely different equipment.
+Two kitchens can follow the same recipe while having completely different equipment.
 
 Similarly:
 
 ```text
-Same ISA
-   ↓
+Same RISC-V ISA
+       ↓
 Different microarchitectures
 ```
 
 ---
 
-# 4. Why RISC-V is a Perfect Specimen for Studying Microarchitecture
+# 3. Why RISC-V is a Perfect Specimen
 
-RISC-V is especially useful because the same ISA has been implemented in processors with very different designs.
+RISC-V is especially useful for studying microarchitecture because the ISA is open, modular, and not tied to one particular implementation style.
 
-## 4.1 Open ISA
+## 3.1 Open ISA
 
 RISC-V is an open standard.
 
-This has encouraged:
+This has encouraged researchers, universities, companies, and hardware developers to create their own implementations.
 
-* universities
-* researchers
-* startups
-* companies
-* hardware enthusiasts
-
-to develop their own implementations.
-
-Therefore, there are many publicly available RISC-V cores that we can actually study.
+As a result, many real RISC-V cores are available for study.
 
 ---
 
-## 4.2 Same ISA, Different Hardware
+## 3.2 Same ISA, Completely Different Hardware
 
-Consider these processors:
+Consider:
 
 ```text
 SERV
@@ -261,100 +211,81 @@ BOOM
 XiangShan
 ```
 
-They all implement RISC-V, but they are very different internally.
+All are associated with RISC-V, but their internal designs are very different.
 
 ```text
-                 RISC-V
-                    |
-        +-----------+-----------+
-        |           |           |
-        ↓           ↓           ↓
-      SERV        Rocket       BOOM
-        |           |           |
-    bit-serial   in-order    out-of-order
+RISC-V
+   |
+   +-- SERV
+   |     Bit-serial
+   |
+   +-- PicoRV32
+   |     Small processor
+   |
+   +-- Rocket
+   |     In-order pipeline
+   |
+   +-- CVA6
+   |     In-order application-class core
+   |
+   +-- BOOM
+   |     Out-of-order
+   |
+   +-- XiangShan
+         High-performance out-of-order
 ```
 
-This lets us ask:
+This gives us a controlled way to study microarchitecture:
 
-> If the ISA is the same, why does the hardware look so different?
-
-The answer is **microarchitecture**.
+> **Keep the ISA relatively constant and change the implementation.**
 
 ---
 
-## 4.3 RISC-V is Modular
+## 3.3 Modular ISA
 
-RISC-V has a base ISA and extensions.
+RISC-V has a base ISA and optional extensions.
 
 For example:
 
 ```text
 RV32I
  |
- +-- M → Integer multiplication/division
- |
+ +-- M → Multiply / Divide
  +-- A → Atomic operations
- |
  +-- F → Single-precision floating point
- |
  +-- D → Double-precision floating point
- |
  +-- C → Compressed instructions
- |
  +-- V → Vector operations
 ```
 
-A tiny embedded processor may implement only a small set of features.
-
-A high-performance processor can implement many extensions.
+A tiny processor can implement a limited set of features, while a high-performance processor can implement many extensions.
 
 ---
 
-## 4.4 Different Design Goals
+## 3.4 Different Design Goals
 
-Different processors optimize for different things.
+Processor design is about trade-offs.
 
-One processor may prioritize:
-
-```text
-Minimum area
-```
-
-Another:
+A processor may prioritize:
 
 ```text
+Small area
 Low power
-```
-
-Another:
-
-```text
+Low cost
+High performance
 High frequency
+Configurability
 ```
 
-Another:
+Therefore, there is no single "best" microarchitecture.
 
-```text
-Maximum performance
-```
-
-Therefore:
-
-```text
-Microarchitecture = trade-offs
-```
-
-There is no single "best" processor design for every application.
+A tiny embedded processor and a high-performance desktop-class processor can both be perfectly valid RISC-V implementations because they have different goals.
 
 ---
 
-# 5. Understanding a CPU Before Studying Real Cores
+# 4. Basic CPU Microarchitecture
 
-Before looking at SERV, Rocket or BOOM, we need a basic picture of what every processor is trying to do.
-
----
-
-# 5.1 Instruction Execution
+Before studying real processors, it is useful to understand what a CPU does at a high level.
 
 Suppose the processor receives:
 
@@ -362,50 +293,47 @@ Suppose the processor receives:
 add x3, x1, x2
 ```
 
-At a high level:
+A simplified execution flow is:
 
 ```text
-1. Fetch instruction
-        ↓
-2. Decode instruction
-        ↓
-3. Read x1 and x2
-        ↓
-4. Perform addition
-        ↓
-5. Store result in x3
+Instruction Memory
+       ↓
+     Fetch
+       ↓
+     Decode
+       ↓
+ Register File
+    ↙     ↘
+   x1     x2
+    \     /
+      ALU
+       ↓
+      x3
 ```
 
-Conceptually:
+More generally:
 
 ```text
-             Instruction Memory
-                    |
-                    ↓
-                Instruction
-                    |
-                    ↓
-                 Decoder
-                    |
-                    ↓
-             Register File
-              /          \
-            x1            x2
-              \          /
-               \        /
-                  ALU
-                   |
-                   ↓
-                  x3
+Fetch
+  ↓
+Decode
+  ↓
+Read Registers
+  ↓
+Execute
+  ↓
+Memory Access
+  ↓
+Write Back
 ```
 
-This is the basic datapath idea.
+Different processors divide and organize these operations differently.
 
 ---
 
-# 5.2 Datapath
+## Datapath
 
-The **datapath** is the hardware through which data moves and gets processed.
+The **datapath** contains hardware through which data moves and is processed.
 
 Typical components include:
 
@@ -413,42 +341,30 @@ Typical components include:
 Register File
 ALU
 MUXes
-Memory
-Pipeline Registers
-```
-
-For example:
-
-```text
-Register 1 ----\
-                \
-                 → ALU → Result
-                /
-Register 2 ----/
+Memory interfaces
+Pipeline registers
 ```
 
 ---
 
-# 5.3 Control Unit
+## Control Unit
 
-The datapath performs operations.
+The control unit generates signals that tell the datapath what to do.
 
-The **control unit tells it what operation to perform**.
-
-For example, when decoding:
+For:
 
 ```assembly
 add x3, x1, x2
 ```
 
-the control logic needs to generate signals such as:
+the control logic conceptually determines:
 
 ```text
-Read Register 1 = YES
-Read Register 2 = YES
-ALU Operation = ADD
-Write Register = YES
-Destination = x3
+Read rs1 = x1
+Read rs2 = x2
+ALU operation = ADD
+Write rd = x3
+Register write = ENABLE
 ```
 
 Therefore:
@@ -456,49 +372,24 @@ Therefore:
 ```text
 CPU
  |
- +-- Datapath → moves/processes data
+ +-- Datapath → processes data
  |
- +-- Control  → tells datapath what to do
+ +-- Control  → controls datapath
 ```
 
 ---
 
-# 6. The Spectrum of RISC-V Cores
+# 5. Tiny Cores: SERV and PicoRV32
 
-A useful way to study real cores is to move from simple to complex.
+Tiny cores demonstrate the simplest end of the RISC-V microarchitecture spectrum.
 
-```text
-                 Increasing complexity
-                         →
-                         
-SERV
-  ↓
-PicoRV32
-  ↓
-Rocket
-  ↓
-CVA6
-  ↓
-BOOM
-  ↓
-XiangShan
-```
+The main question is:
 
-The important thing is not memorizing this list.
-
-The important thing is understanding **why each generation becomes more complex**.
+> **How little hardware can we use to implement a useful RISC-V processor?**
 
 ---
 
-# 7. Tiny Cores: SERV and PicoRV32
-
-Tiny cores answer the question:
-
-> **What is the minimum amount of hardware needed to build a useful RISC-V processor?**
-
----
-
-# 7.1 SERV
+# 5.1 SERV
 
 SERV stands for:
 
@@ -506,28 +397,24 @@ SERV stands for:
 
 SERV is a **bit-serial RISC-V processor**.
 
-The word "serial" is extremely important.
-
-A conventional processor may have a wide datapath capable of processing many bits together.
-
-SERV uses a much smaller datapath and processes operations serially.
+The important idea is that it uses a very small datapath and processes data serially rather than using a conventional wide datapath.
 
 ---
 
-# 7.2 Why SERV is Bit-Serial
+## Why Bit-Serial?
 
 Suppose we want to add two 32-bit numbers.
 
-A conventional 32-bit datapath can conceptually operate on the complete values:
-
-```text
-A = 101101010101...
-B = 001011101010...
-```
-
-SERV instead processes the operation one bit at a time.
+A conventional 32-bit datapath can operate on the complete width using a 32-bit ALU.
 
 Conceptually:
+
+```text
+A = 101101...
+B = 001011...
+```
+
+SERV processes the operation one bit at a time.
 
 ```text
 Cycle 1 → bit 0
@@ -537,116 +424,90 @@ Cycle 3 → bit 2
 Cycle 32 → bit 31
 ```
 
-A carry from one bit can be passed to the next bit.
-
-For example:
+For addition, a carry moves from one bit position to the next:
 
 ```text
-Bit 0:
 A0 + B0 + Carry
         ↓
-     Result0
+      Result0
         ↓
-     Carry
+      Carry
 
-Bit 1:
 A1 + B1 + Carry
         ↓
-     Result1
+      Result1
 ```
 
-And so on.
+The exact internal implementation is more sophisticated, but this illustrates the fundamental idea.
 
 ---
 
-## Why would we do this?
+## Why Make a CPU This Way?
 
-Because hardware becomes much smaller.
-
-Instead of building a large datapath:
+A smaller datapath means:
 
 ```text
-Large ALU
-Large hardware
-More area
+Less hardware
+   ↓
+Less area
+   ↓
+Potentially lower hardware cost
 ```
 
-we can reuse a very small datapath.
-
-The trade-off is:
+But:
 
 ```text
-Smaller hardware
-      ↓
 Less parallelism
-      ↓
+   ↓
 More cycles
-      ↓
+   ↓
 Lower performance
 ```
 
----
+SERV therefore demonstrates a fundamental microarchitecture trade-off:
 
-# 7.3 Advantages and Disadvantages of SERV
-
-### Advantages
-
-* Extremely small hardware
-* Useful for studying minimal CPU design
-* Suitable for resource-constrained applications
-* Demonstrates how an ISA can be implemented with very little hardware
-
-### Disadvantages
-
-* Very low performance
-* Many cycles are required
-* Very little parallelism
-
-The main lesson from SERV is:
-
-> **A CPU does not have to be large or fast to implement an ISA.**
+> **Hardware efficiency can be more important than raw performance.**
 
 ---
 
-# 7.4 PicoRV32
+# 5.2 PicoRV32
 
 PicoRV32 is another small RISC-V processor core.
 
-It is designed as a practical, configurable, size-optimized processor for FPGA and ASIC use.
+It is designed to provide a practical, configurable, size-optimized RISC-V implementation for FPGA and ASIC applications.
 
 Compared with SERV:
 
 ```text
 SERV
 ↓
-Extremely small and bit-serial
+Extremely small + bit-serial
 
 PicoRV32
 ↓
-Small practical RISC-V CPU
+Small + practical + configurable
 ```
 
-PicoRV32 supports several RISC-V configurations and provides interfaces for connecting the processor to a larger system.
+PicoRV32 supports multiple RISC-V configurations and provides interfaces for connecting the processor to a larger system.
 
 ---
 
-# 7.5 SERV vs PicoRV32
+# 5.3 SERV vs PicoRV32
 
-| Feature     | SERV             | PicoRV32                  |
-| ----------- | ---------------- | ------------------------- |
-| Main idea   | Bit-serial CPU   | Small practical CPU       |
-| Datapath    | Extremely small  | More conventional         |
-| Performance | Very low         | Higher                    |
-| Area        | Extremely small  | Small                     |
-| Complexity  | Very low         | Low                       |
-| Main lesson | Minimum hardware | Practical small processor |
+| Feature     | SERV                   | PicoRV32            |
+| ----------- | ---------------------- | ------------------- |
+| Main idea   | Bit-serial CPU         | Small practical CPU |
+| Hardware    | Extremely small        | Small               |
+| Parallelism | Very low               | Higher              |
+| Performance | Very low               | Higher              |
+| Main lesson | Minimum implementation | Practical small CPU |
 
-The progression is:
+The conceptual progression is:
 
 ```text
 SERV
  ↓
-"What is the smallest implementation?"
+"What is the smallest useful implementation?"
 
 PicoRV32
  ↓
@@ -655,45 +516,17 @@ PicoRV32
 
 ---
 
-# 8. In-Order Pipelined Cores
+# 6. In-Order Pipelines
 
-Now we move from tiny processors to more sophisticated processors.
-
-The main new concept is:
-
-> **Pipelining**
+After tiny processors, we move toward processors that use **pipelining** to improve throughput.
 
 ---
 
-# 8.1 What is Pipelining?
+# 6.1 Pipelining
 
-Imagine washing clothes.
+A pipeline divides instruction execution into stages.
 
-Without a pipeline:
-
-```text
-Wash → Dry → Fold
-```
-
-You wait until one load finishes before starting the next.
-
-With a pipeline:
-
-```text
-Load 1: Wash → Dry → Fold
-Load 2:        Wash → Dry → Fold
-Load 3:               Wash → Dry → Fold
-```
-
-Multiple loads are being processed at different stages simultaneously.
-
-A CPU works similarly.
-
----
-
-## CPU Pipeline
-
-A simplified 5-stage pipeline:
+A simplified five-stage pipeline is:
 
 ```text
 IF → ID → EX → MEM → WB
@@ -709,57 +542,56 @@ MEM = Memory Access
 WB  = Write Back
 ```
 
----
-
-# 8.2 Why Do We Need Pipelines?
-
-Suppose each stage takes one clock cycle.
-
 Without pipelining:
 
 ```text
 Instruction 1:
 IF → ID → EX → MEM → WB
 
-Then:
-
 Instruction 2:
-IF → ID → EX → MEM → WB
+             IF → ID → EX → MEM → WB
 ```
 
 With pipelining:
 
 ```text
-Cycle 1:
-I1 → IF
+Cycle     1    2    3    4    5
 
-Cycle 2:
-I1 → ID
-I2 → IF
-
-Cycle 3:
-I1 → EX
-I2 → ID
-I3 → IF
-
-Cycle 4:
-I1 → MEM
-I2 → EX
-I3 → ID
-I4 → IF
+I1       IF   ID   EX   MEM   WB
+I2            IF   ID   EX    MEM
+I3                 IF   ID    EX
+I4                      IF    ID
 ```
 
-Now multiple instructions are being processed simultaneously.
-
-This improves **throughput**.
+Multiple instructions are therefore being processed simultaneously.
 
 ---
 
-# 8.3 What Does In-Order Mean?
+## Important Point
 
-In an in-order processor, instructions are handled according to their program order.
+Pipelining mainly improves **throughput**.
 
-Suppose:
+It does not mean that one instruction suddenly requires only one stage.
+
+Instead:
+
+> **Different instructions occupy different stages at the same time.**
+
+A useful analogy is an assembly line.
+
+```text
+Stage 1 → Stage 2 → Stage 3 → Stage 4
+```
+
+While one product is in Stage 3, another product can be in Stage 2.
+
+---
+
+# 6.2 In-Order Execution
+
+"In-order" means that instructions are handled according to their program order.
+
+For example:
 
 ```assembly
 1. add x3, x1, x2
@@ -773,19 +605,27 @@ The processor maintains the ordering:
 1 → 2 → 3
 ```
 
-The instructions move through the pipeline in program order.
+This does not mean that only one instruction exists inside the pipeline at a time.
 
-This makes the processor easier to design than an out-of-order processor.
+Instead:
+
+```text
+I1 → pipeline
+I2 → pipeline
+I3 → pipeline
+```
+
+can all be present simultaneously, while their ordering remains controlled.
+
+In-order processors are generally simpler than out-of-order processors.
 
 ---
 
-# 8.4 Pipeline Hazards
+# 6.3 Pipeline Hazards
 
-Pipelining introduces problems called **hazards**.
+Once instructions overlap, problems can occur.
 
-There are three major types.
-
----
+These are called **pipeline hazards**.
 
 ## Data Hazard
 
@@ -796,7 +636,7 @@ add x3, x1, x2
 sub x4, x3, x5
 ```
 
-The second instruction needs the result produced by the first.
+The second instruction needs the result of the first.
 
 ```text
 ADD
@@ -808,9 +648,7 @@ SUB
 needs x3
 ```
 
-If x3 is not ready yet, the processor has a problem.
-
-Possible solutions:
+Possible solutions include:
 
 ```text
 Forwarding
@@ -821,17 +659,15 @@ Stalling
 
 ## Control Hazard
 
-Consider:
+Example:
 
 ```assembly
 beq x1, x2, target
 ```
 
-The processor may not immediately know which instruction comes next.
+The processor may not immediately know which instruction should be fetched next.
 
-This is a branch problem.
-
-Processors use:
+This is why processors use mechanisms such as:
 
 ```text
 Branch prediction
@@ -839,32 +675,26 @@ Branch target prediction
 Pipeline flushing
 ```
 
-to reduce the performance penalty.
-
 ---
 
 ## Structural Hazard
 
-This happens when multiple instructions need the same hardware resource.
-
-Example:
+This happens when two instructions need the same hardware resource at the same time.
 
 ```text
-Instruction A → needs memory
-Instruction B → needs same memory resource
+Instruction A → needs resource X
+Instruction B → also needs resource X
 ```
 
 The processor must resolve the conflict.
 
 ---
 
-# 8.5 Rocket
+# 6.4 Rocket
 
-Rocket is a classic RISC-V processor core and generator.
+Rocket is a well-known RISC-V **in-order scalar processor core and generator**.
 
-It is an **in-order scalar processor** with a pipelined design.
-
-A simplified pipeline can be represented as:
+A simplified view of its pipeline is:
 
 ```text
 Fetch
@@ -878,7 +708,7 @@ Memory
 Writeback
 ```
 
-Rocket is much more sophisticated than tiny cores.
+Rocket is significantly more sophisticated than tiny cores.
 
 It can include:
 
@@ -889,38 +719,25 @@ It can include:
 * configurable ISA extensions
 * memory interfaces
 
----
+Rocket demonstrates an important design point:
 
-## Why Rocket is important
-
-Rocket is a useful example of a processor that tries to balance:
-
-```text
-Performance
-+
-Hardware complexity
-+
-Configurability
-```
-
-It shows that we can build a relatively capable processor without immediately moving to out-of-order execution.
+> **A processor can achieve useful performance through pipelining without requiring out-of-order execution.**
 
 ---
 
-# 8.6 CVA6
+# 6.5 CVA6
 
 CVA6 is another important RISC-V processor.
 
-CVA6 is:
+It is:
 
 ```text
 6-stage
 Single-issue
 In-order
-RISC-V
 ```
 
-A simplified view is:
+A simplified conceptual pipeline is:
 
 ```text
 Fetch
@@ -936,31 +753,31 @@ Memory
 Commit
 ```
 
-CVA6 also contains advanced features such as:
+CVA6 also includes more advanced features such as:
 
 * caches
 * branch prediction
-* virtual memory
 * TLBs
+* virtual memory
 * privilege support
 
-The important point is:
+The key point is:
 
-> **CVA6 is still in-order even though it is considerably more sophisticated than tiny RISC-V cores.**
+> **CVA6 is a sophisticated in-order processor, not an out-of-order processor.**
 
----
-
-# 9. Out-of-Order Cores
-
-Now we move to a much more advanced microarchitecture.
-
-The key idea is:
-
-> **The processor does not always execute instructions in program order.**
+This makes it useful for comparing increasingly complex in-order designs with later out-of-order designs.
 
 ---
 
-# 9.1 Why Out-of-Order Execution?
+# 7. Out-of-Order Cores
+
+Out-of-order execution introduces a major change.
+
+The processor can execute an instruction **when its operands and resources are ready**, rather than strictly waiting for earlier instructions.
+
+---
+
+# 7.1 Why Out-of-Order?
 
 Consider:
 
@@ -970,65 +787,45 @@ Consider:
 3. add  x5, x6, x7
 ```
 
-Instruction 2 depends on instruction 1.
-
-Suppose instruction 1 takes a long time because memory is slow.
-
-Then:
+There is a dependency:
 
 ```text
-Instruction 1 → WAITING
-Instruction 2 → WAITING
-Instruction 3 → READY
+1 → 2
 ```
 
-An in-order processor may be restricted by the earlier instructions.
+Instruction 3 is independent.
 
-An out-of-order processor can say:
+Suppose instruction 1 takes a long time because of a cache miss:
 
-> "Instruction 3 does not depend on 1 or 2, so I can execute it now."
+```text
+I1 → waiting
+I2 → waiting for I1
+I3 → ready
+```
 
-Therefore:
+An out-of-order processor can execute:
+
+```text
+I1 → waiting
+I2 → waiting
+I3 → execute
+```
+
+So:
 
 ```text
 Program order:
-
 1 → 2 → 3
 
-Execution order:
-
+Possible execution order:
 1 → 3 → 2
 ```
 
-This is the central idea behind out-of-order execution.
+The processor is exploiting **Instruction-Level Parallelism (ILP)**.
 
 ---
 
-# 9.2 Instruction-Level Parallelism
-
-Modern programs often contain instructions that are independent.
-
-For example:
-
-```assembly
-add x3, x1, x2
-sub x6, x4, x5
-and x9, x7, x8
-```
-
-These instructions do not depend on each other.
-
-Therefore, a sufficiently advanced processor can execute them in parallel.
-
-This is called:
-
-> **Instruction-Level Parallelism (ILP)**
-
-The goal of an out-of-order processor is to discover and exploit this parallelism.
-
----
-
-# 9.3 Register Renaming
+# 7.2 Register Renaming
 
 Consider:
 
@@ -1039,51 +836,42 @@ sub x1, x4, x5
 
 Both instructions write to `x1`.
 
-Architecturally this is allowed.
-
-Internally, however, the processor can assign different physical registers:
+Internally, the processor can assign different physical registers:
 
 ```text
-Instruction 1:
-x1 → Physical Register P7
-
-Instruction 2:
-x1 → Physical Register P12
+Instruction 1 → P7
+Instruction 2 → P12
 ```
 
 Conceptually:
 
 ```text
-Architectural Register
-        x1
-         |
-    +----+----+
-    |         |
-    ↓         ↓
-   P7        P12
+Architectural x1
+       |
+       +----→ P7
+       |
+       +----→ P12
 ```
 
-This technique is called:
+This is called **register renaming**.
 
-> **Register Renaming**
-
-It helps remove false dependencies and increases available parallelism.
+It helps remove false dependencies and allows more instructions to execute independently.
 
 ---
 
-# 9.4 Issue Queue
+# 7.3 Issue Queue
 
-The issue queue contains instructions waiting to execute.
+An out-of-order processor needs somewhere to hold instructions that are waiting.
 
 For example:
 
 ```text
-Instruction       Operands Ready?
+Instruction       Ready?
 
-ADD               YES
-SUB               NO
-MUL               YES
-LOAD              NO
+ADD                  YES
+SUB                  NO
+MUL                  YES
+LOAD                 NO
 ```
 
 The processor can select:
@@ -1093,115 +881,101 @@ ADD → Execute
 MUL → Execute
 ```
 
-while the others wait.
+while the others remain waiting.
 
 Therefore:
 
 ```text
-Instruction Queue
-       ↓
+Instructions
+     ↓
+Issue Queue
+     ↓
 Find ready instructions
-       ↓
-Send them to execution units
+     ↓
+Execution Units
 ```
 
-This is one of the major differences between simple in-order and out-of-order processors.
+This allows the processor to use available hardware more effectively.
 
 ---
 
-# 9.5 Reorder Buffer
+# 7.4 Reorder Buffer
 
-Now we have a problem.
+Out-of-order execution creates another problem.
 
 Suppose:
 
 ```text
 Program order:
-
 I1 → I2 → I3
-```
 
-but:
-
-```text
 Execution order:
-
 I1 → I3 → I2
 ```
 
-We still want the processor's final architectural state to behave as if:
+If results were permanently committed in execution order, the architectural state could become incorrect.
 
-```text
-I1 → I2 → I3
-```
+The **Reorder Buffer (ROB)** tracks instructions in program order.
 
-The **Reorder Buffer (ROB)** helps maintain this ordering.
-
-Conceptually:
+Therefore:
 
 ```text
 Execution:
-    I1 ────────┐
-    I3 ────────┼──→ Results
-    I2 ────────┘
+I1 → I3 → I2
 
 Commit:
-    I1 → I2 → I3
+I1 → I2 → I3
 ```
 
-This gives us:
+This gives us the important principle:
 
-```text
-Out-of-order execution
-+
-In-order architectural commitment
-```
+> **Execution can be out of order, while architectural commitment remains in order.**
 
-This is one of the most important ideas in out-of-order microarchitecture.
+The ROB is therefore important for maintaining precise architectural state.
 
 ---
 
-# 9.6 Speculative Execution
+# 7.5 Speculative Execution
 
-Consider a branch:
+Branches create uncertainty.
+
+For:
 
 ```assembly
 beq x1, x2, target
 ```
 
-The processor does not immediately know which path will be taken.
+the processor may not yet know which path will be taken.
 
-Instead, it predicts:
+A branch predictor makes a prediction:
 
 ```text
-Branch taken
+Branch → Taken
 ```
 
-and starts executing instructions from that path.
+The processor can then start fetching and executing instructions from the predicted path.
 
 If the prediction is correct:
 
 ```text
-Continue
+Continue normally
 ```
 
-If it is wrong:
+If incorrect:
 
 ```text
 Discard incorrect work
-+
+        ↓
 Fetch correct instructions
 ```
 
-This is called:
+This is **speculative execution**.
 
-> **Speculative Execution**
-
-Branch prediction and speculation allow the pipeline to stay busy.
+It improves performance by preventing the processor from sitting idle while waiting for every branch decision.
 
 ---
 
-# 9.7 BOOM
+# 7.6 BOOM
 
 BOOM stands for:
 
@@ -1209,9 +983,7 @@ BOOM stands for:
 
 BOOM is an open-source RISC-V out-of-order processor core.
 
-It is designed to demonstrate and research high-performance processor microarchitecture.
-
-A simplified BOOM-style pipeline can be viewed as:
+A simplified view is:
 
 ```text
 Fetch
@@ -1231,7 +1003,7 @@ Writeback
 Commit
 ```
 
-The important difference from a simple in-order processor is that the processor now has machinery for:
+Compared with a simple in-order processor, BOOM requires substantially more hardware for:
 
 ```text
 Register renaming
@@ -1239,251 +1011,192 @@ Issue queues
 Multiple execution units
 Speculation
 Reorder buffer
-Out-of-order execution
+Out-of-order scheduling
 ```
+
+BOOM therefore demonstrates how increasing performance also increases microarchitectural complexity.
 
 ---
 
-# 9.8 XiangShan
+# 7.7 XiangShan
 
 XiangShan is an open-source, high-performance RISC-V processor project.
 
-It represents another step toward sophisticated modern processor design.
+It focuses on advanced processor microarchitecture and high performance rather than minimum hardware.
 
-Instead of focusing on minimum hardware, XiangShan focuses on:
-
-```text
-High performance
-+
-Advanced microarchitecture
-+
-Research
-```
-
-Its design includes sophisticated mechanisms for:
+Its design involves sophisticated mechanisms for:
 
 * instruction fetching
 * branch prediction
 * out-of-order execution
 * instruction scheduling
+* register renaming
 * memory operations
 * caches
-* register renaming
 * retirement
 
-The important lesson is:
-
-> **RISC-V is not limited to simple embedded processors. It can also be used as the ISA for highly sophisticated high-performance CPUs.**
+XiangShan demonstrates that RISC-V can serve as the ISA for highly sophisticated processors, not just small embedded CPUs.
 
 ---
 
-# 10. Generators
+# 8. Generators
 
-So far we have been talking about processors as hardware designs.
+So far we have looked at processor implementations.
 
-Modern hardware development introduces another idea:
-
-> **Hardware can be generated using software.**
+Modern hardware design also uses **hardware generators**.
 
 ---
 
-# 10.1 What is a Hardware Generator?
+# 8.1 Hardware Generators
 
-Imagine writing one CPU manually.
+A traditional HDL project may describe one particular processor.
 
-You might create:
-
-```text
-CPU.v
-ALU.v
-RegisterFile.v
-Cache.v
-Control.v
-...
-```
-
-That creates one particular design.
-
-A generator instead allows us to describe:
-
-```text
-"Build me a CPU with these parameters."
-```
+A generator instead describes a **family of possible hardware designs**.
 
 For example:
 
 ```text
-Number of cores = 4
-L1 cache = 32 KB
-L2 cache = 512 KB
-RV64 = enabled
-Floating point = enabled
-```
-
-The generator can produce the corresponding hardware.
-
-Conceptually:
-
-```text
 Parameters
-    ↓
-Hardware Generator
-    ↓
-Generated RTL
-    ↓
-Verilog / SystemVerilog
-    ↓
-FPGA / ASIC
+   |
+   +-- Number of cores
+   +-- Cache size
+   +-- ISA extensions
+   +-- Memory configuration
+   +-- Other options
+             |
+             ↓
+       Hardware Generator
+             |
+             ↓
+          RTL
+             |
+             ↓
+       FPGA / ASIC
 ```
+
+This is useful because engineers can explore different designs without manually rewriting the entire processor.
 
 ---
 
-# 10.2 Why Are Generators Useful?
-
-Imagine designing 10 processors manually.
-
-That would be extremely repetitive.
-
-A generator allows us to change parameters instead.
-
-```text
-                  Generator
-                     |
-       +-------------+-------------+
-       |             |             |
-       ↓             ↓             ↓
-    Small CPU     Medium CPU    Large CPU
-```
-
-This provides:
-
-* configurability
-* reuse
-* faster experimentation
-* easier research
-* parameter exploration
-
----
-
-# 10.3 Chisel
+# 8.2 Chisel
 
 Chisel is a hardware construction language embedded in Scala.
-
-Instead of writing only traditional RTL, designers can write hardware-generating programs.
 
 Conceptually:
 
 ```text
 Scala + Chisel
-      ↓
-Hardware description
-      ↓
+       ↓
+Hardware construction program
+       ↓
 Generated RTL
-      ↓
+       ↓
 Verilog
 ```
 
-This makes it easier to create parameterized hardware.
+Chisel makes it easier to describe reusable and parameterized hardware.
+
+This is especially useful for processor generators.
 
 ---
 
-# 10.4 Rocket Chip
+# 8.3 Rocket Chip
 
 Rocket Chip is a RISC-V hardware generator ecosystem.
 
-Instead of thinking:
+It can be used to generate Rocket-based systems with configurable components.
+
+The important distinction is:
 
 ```text
-Rocket = one fixed processor
+Rocket core
+      ≠
+one completely fixed CPU design
 ```
 
-it is better to think:
-
-```text
-Rocket
-+
-Generator
-+
-Configurable system
-```
-
-The generator can create different Rocket-based systems according to configuration.
+Instead, the Rocket ecosystem uses parameterization and generation to create different configurations.
 
 ---
 
-# 10.5 Chipyard
+# 8.4 Chipyard
 
-Chipyard provides a framework for designing complete RISC-V systems.
+Chipyard is a framework for designing RISC-V-based SoCs.
 
-It can bring together:
+It can combine:
 
 ```text
-CPU cores
+RISC-V cores
 +
 Caches
 +
 Memory systems
 +
-Interconnect
+Interconnects
 +
 Peripherals
 +
 Accelerators
 +
-Simulation
+Simulation infrastructure
 ```
 
 For example:
 
 ```text
-                    Chipyard
-                       |
-        +--------------+--------------+
-        |              |              |
-      Rocket          BOOM           CVA6
-        |              |              |
-        +--------------+--------------+
-                       |
-                  Interconnect
-                       |
-             +---------+---------+
-             |                   |
-           Memory            Peripherals
+                 Chipyard
+                    |
+        +-----------+-----------+
+        |           |           |
+      Rocket       BOOM        CVA6
+        |           |           |
+        +-----------+-----------+
+                    |
+               Interconnect
+                    |
+          +---------+---------+
+          |                   |
+        Memory            Peripherals
 ```
 
-This is where processor microarchitecture connects to **actual SoC design**.
-
----
-
-# 11. From CPU Core to SoC
-
-A CPU core is only one part of a complete computer system.
-
-An **SoC (System-on-Chip)** combines the CPU with other hardware.
-
-A simplified SoC:
+Therefore, Chipyard connects the concepts of:
 
 ```text
-+--------------------------------------------------+
-|                      SoC                         |
-|                                                  |
-|   +---------+       +-----------------------+    |
-|   |   CPU   | <---> | Cache / Memory System |    |
-|   +---------+       +-----------------------+    |
-|        |                                         |
-|        ↓                                         |
-|   +------------------------------------------+   |
-|   |             Interconnect / Bus           |   |
-|   +------------------------------------------+   |
-|       |             |             |             |
-|      UART          GPIO          SPI           |
-|                                                  |
-+--------------------------------------------------+
+Core
+ ↓
+Generator
+ ↓
+System
+ ↓
+SoC
 ```
 
 ---
 
-## CPU
+# 9. From Core to SoC
+
+A CPU core is only one component of a complete computer system.
+
+An **SoC (System-on-Chip)** combines the processor with memory, communication infrastructure and peripherals.
+
+```text
++------------------------------------------------+
+|                     SoC                        |
+|                                                |
+|   +---------+       +----------------------+   |
+|   |   CPU   | <---> | Cache / Memory      |   |
+|   +---------+       +----------------------+   |
+|        |                                       |
+|        ↓                                       |
+|   +----------------------------------------+   |
+|   |           Interconnect / Bus           |   |
+|   +----------------------------------------+   |
+|       |              |             |           |
+|      UART            GPIO          SPI         |
+|                                                |
++------------------------------------------------+
+```
+
+### CPU Core
 
 Executes instructions.
 
@@ -1496,25 +1209,13 @@ CVA6
 PicoRV32
 ```
 
----
+### Memory
 
-## Memory
+Stores instructions and data.
 
-Stores:
+### Cache
 
-```text
-Instructions
-Data
-Program state
-```
-
----
-
-## Cache
-
-The CPU needs data quickly.
-
-Instead of always going to slow main memory, frequently used data can be stored in a cache.
+A small, fast memory close to the processor.
 
 ```text
 CPU
@@ -1526,29 +1227,20 @@ L2 Cache
 Main Memory
 ```
 
----
+### Interconnect
 
-## Interconnect
-
-The interconnect allows components to communicate.
+Allows different components to communicate.
 
 ```text
-CPU
- |
- +---- Memory
- |
- +---- UART
- |
- +---- GPIO
- |
- +---- SPI
+CPU ↔ Memory
+CPU ↔ UART
+CPU ↔ GPIO
+CPU ↔ SPI
 ```
 
----
+### Peripherals
 
-## Peripherals
-
-Examples:
+Examples include:
 
 ```text
 UART
@@ -1559,498 +1251,314 @@ Timers
 Interrupt Controllers
 ```
 
-These allow the processor to interact with the external world.
-
----
-
-# 12. Comparing the Real RISC-V Cores
-
-| Core          | Category     | Main idea            | Complexity  | Main goal                 |
-| ------------- | ------------ | -------------------- | ----------- | ------------------------- |
-| **SERV**      | Tiny         | Bit-serial           | Very Low    | Minimum area              |
-| **PicoRV32**  | Tiny         | Small practical CPU  | Low         | Small implementation      |
-| **Rocket**    | In-order     | Pipelined scalar CPU | Medium      | Balanced performance      |
-| **CVA6**      | In-order     | 6-stage single-issue | Medium/High | Application-class CPU     |
-| **BOOM**      | Out-of-order | High-performance OOO | High        | Performance               |
-| **XiangShan** | Out-of-order | Advanced OOO CPU     | Very High   | High-performance research |
-
----
-
-# 13. The Complete Microarchitecture Journey
-
-The entire topic can now be understood as one progression.
-
-## Step 1 — Implement the ISA
-
-First, we need hardware capable of executing RISC-V instructions.
+Therefore:
 
 ```text
-ADD
-SUB
-LW
-SW
-BEQ
-AND
-OR
-XOR
-...
-```
-
-Example:
-
-```text
-SERV
-```
-
----
-
-## Step 2 — Make the CPU practical
-
-We want:
-
-```text
-Small area
-+
-Reasonable performance
-```
-
-Example:
-
-```text
-PicoRV32
-```
-
----
-
-## Step 3 — Pipeline the processor
-
-Instead of completing one instruction before starting another:
-
-```text
-I1 → complete
-I2 → complete
-I3 → complete
-```
-
-we overlap them:
-
-```text
-I1: IF → ID → EX → MEM → WB
-I2:     IF → ID → EX → MEM → WB
-I3:         IF → ID → EX → MEM → WB
-```
-
-Examples:
-
-```text
-Rocket
-CVA6
-```
-
----
-
-## Step 4 — Exploit Instruction-Level Parallelism
-
-Now we ask:
-
-> What if some instructions are waiting while other instructions are ready?
-
-We allow independent instructions to execute.
-
-```text
-Program order:
-I1 → I2 → I3 → I4
-
-Possible execution:
-I1 → I3 → I4 → I2
-```
-
-Examples:
-
-```text
-BOOM
-XiangShan
-```
-
----
-
-## Step 5 — Generate Hardware
-
-Instead of manually designing one processor:
-
-```text
-Generator
-    ↓
-Different configurations
-```
-
-Examples:
-
-```text
-Rocket Chip
-Chipyard
-```
-
----
-
-## Step 6 — Build a Complete SoC
-
-Finally:
-
-```text
-CPU
-+
-Cache
-+
+CPU Core
+   +
 Memory
-+
+   +
 Interconnect
-+
+   +
 Peripherals
-+
-Accelerators
-=
+   =
 SoC
 ```
 
 ---
 
-# 14. Important Concepts
+# 10. Comparing the Real RISC-V Cores
 
-## ISA
+| Core          | Type         | Main Idea             | Complexity  | Main Goal                   |
+| ------------- | ------------ | --------------------- | ----------- | --------------------------- |
+| **SERV**      | Tiny         | Bit-serial            | Very Low    | Minimum area                |
+| **PicoRV32**  | Tiny         | Small practical CPU   | Low         | Small implementation        |
+| **Rocket**    | In-order     | Pipelined scalar      | Medium      | Balanced design             |
+| **CVA6**      | In-order     | 6-stage, single-issue | Medium/High | Application-class processor |
+| **BOOM**      | Out-of-order | High-performance OOO  | High        | Performance                 |
+| **XiangShan** | Out-of-order | Advanced OOO          | Very High   | High-performance research   |
 
-Defines:
-
-> **What the processor does.**
-
----
-
-## Microarchitecture
-
-Defines:
-
-> **How the processor does it.**
-
----
-
-## Datapath
-
-Hardware through which data moves and is processed.
-
----
-
-## Control Unit
-
-Generates control signals that tell the datapath what to do.
-
----
-
-## ALU
-
-Arithmetic Logic Unit.
-
-Performs operations such as:
+A conceptual progression is:
 
 ```text
-ADD
-SUB
-AND
-OR
-XOR
-Comparison
+                         Complexity
+                             ↑
+                             |
+                       XiangShan
+                             |
+                           BOOM
+                             |
+                     Rocket / CVA6
+                             |
+                        PicoRV32
+                             |
+                           SERV
+                             +----------------→
+                                      Performance
+```
+
+This is a conceptual learning map, not a benchmark ranking.
+
+---
+
+# 11. The Complete Microarchitecture Journey
+
+The five professor-assigned topics can be connected into one story.
+
+## 1. RISC-V as the Specimen
+
+RISC-V gives us the common ISA.
+
+```text
+RISC-V ISA
+"What should happen?"
 ```
 
 ---
 
-## Register File
+## 2. Tiny Cores
 
-Contains the processor's architectural registers.
-
-For RV32:
+SERV and PicoRV32 show how little hardware can implement the ISA.
 
 ```text
-32 registers
-×
-32 bits each
+RISC-V
+   ↓
+SERV / PicoRV32
+   ↓
+Small hardware
 ```
 
 ---
 
-## Pipeline
+## 3. In-Order Pipelines
 
-Divides instruction execution into stages so multiple instructions can be processed simultaneously.
-
----
-
-## In-Order
-
-Instructions are processed according to program order.
-
-Examples:
+Rocket and CVA6 show how pipelining improves throughput while keeping execution relatively simple.
 
 ```text
-Rocket
-CVA6
+RISC-V
+   ↓
+Pipeline
+   ↓
+Multiple instructions in flight
+   ↓
+Higher throughput
 ```
 
 ---
 
-## Out-of-Order
+## 4. Out-of-Order Execution
 
-Instructions can execute when ready even if earlier instructions are waiting.
-
-Examples:
+BOOM and XiangShan go further by exploiting instruction-level parallelism.
 
 ```text
-BOOM
-XiangShan
+RISC-V
+   ↓
+Out-of-order execution
+   ↓
+Find independent instructions
+   ↓
+Execute when ready
+   ↓
+Higher performance
+```
+
+This requires additional mechanisms:
+
+```text
+Register Renaming
+Issue Queue
+Speculation
+Reorder Buffer
+Multiple Execution Units
 ```
 
 ---
 
-## Instruction-Level Parallelism
+## 5. Generators and SoCs
 
-The ability to execute multiple independent instructions at the same time.
+Finally, generators allow configurable hardware systems to be created.
 
----
+```text
+Parameters
+    ↓
+Generator
+    ↓
+CPU + Memory + Peripherals
+    ↓
+SoC
+```
 
-## Register Renaming
+This gives the complete progression:
 
-Maps architectural registers to physical registers to reduce false dependencies.
-
----
-
-## Issue Queue
-
-Stores instructions waiting for their operands/resources to become ready.
-
----
-
-## Reorder Buffer
-
-Tracks instructions so that out-of-order execution can still produce correct architectural results.
-
----
-
-## Speculative Execution
-
-Executing instructions based on predicted future control flow.
-
----
-
-## Branch Prediction
-
-Predicting whether a branch will be taken and/or where execution will continue.
+```text
+RISC-V ISA
+    ↓
+Tiny Core
+    ↓
+Pipelined In-Order Core
+    ↓
+Out-of-Order Core
+    ↓
+Generator
+    ↓
+SoC
+```
 
 ---
 
-## Cache
+# 12. Key Concepts
 
-Small, fast memory located close to the processor that stores frequently accessed data/instructions.
+| Concept               | Meaning                                                    |
+| --------------------- | ---------------------------------------------------------- |
+| **ISA**               | Defines what instructions do                               |
+| **Microarchitecture** | Defines how instructions are implemented                   |
+| **Datapath**          | Hardware through which data moves                          |
+| **Control Unit**      | Controls datapath operations                               |
+| **ALU**               | Performs arithmetic and logical operations                 |
+| **Pipeline**          | Divides execution into overlapping stages                  |
+| **In-order**          | Instructions are handled according to program order        |
+| **Out-of-order**      | Ready instructions can execute before earlier waiting ones |
+| **ILP**               | Parallelism between independent instructions               |
+| **Register Renaming** | Maps architectural registers to physical registers         |
+| **Issue Queue**       | Holds instructions waiting to execute                      |
+| **ROB**               | Allows OOO execution while preserving correct commit order |
+| **Branch Prediction** | Predicts future control flow                               |
+| **Speculation**       | Executes based on predictions                              |
+| **Cache**             | Small, fast memory close to the CPU                        |
+| **Generator**         | Software that produces configurable hardware               |
+| **SoC**               | Complete system containing CPU and supporting hardware     |
 
 ---
 
-## Generator
-
-Software that generates hardware according to parameters.
-
----
-
-## SoC
-
-System-on-Chip.
-
-A complete system containing a processor and supporting components such as memory, interconnects and peripherals.
-
----
-
-# 15. Questions I Should Be Able to Answer
+# 13. Questions to Test My Understanding
 
 ## RISC-V
 
 1. What is RISC-V?
 2. What is an ISA?
-3. Why is RISC-V called an open ISA?
-4. Why is RISC-V useful for research?
-5. Why can multiple completely different processors implement RISC-V?
+3. Why is RISC-V useful for microarchitecture research?
+4. Why can two RISC-V processors have completely different internal hardware?
+5. What is the difference between ISA and microarchitecture?
 
----
+## Tiny Cores
 
-## ISA vs Microarchitecture
+6. What is SERV?
+7. What does bit-serial mean?
+8. Why does SERV use less hardware?
+9. Why is SERV slower?
+10. What is PicoRV32?
+11. How is PicoRV32 different from SERV?
 
-6. What is the difference between ISA and microarchitecture?
-7. If two processors use the same ISA, why can their internal hardware be different?
-8. Is RISC-V itself a processor?
-9. What does the ISA specify?
-10. What does the microarchitecture specify?
+## Pipelines
 
----
-
-## SERV
-
-11. What is SERV?
-12. What does "bit-serial" mean?
-13. Why does bit-serial processing reduce hardware?
-14. Why is SERV slower?
-15. What trade-off does SERV demonstrate?
-
----
-
-## PicoRV32
-
-16. What is PicoRV32?
-17. Why is PicoRV32 useful?
-18. How is PicoRV32 different from SERV?
-
----
-
-## Pipeline
-
-19. What is a pipeline?
-20. Why do processors use pipelines?
-21. What are the typical pipeline stages?
-22. What is instruction throughput?
-23. Does pipelining necessarily reduce the latency of one instruction?
-24. What is an in-order processor?
-
----
-
-## Hazards
-
-25. What is a data hazard?
-26. What is a control hazard?
-27. What is a structural hazard?
-28. What is forwarding?
-29. Why is branch prediction required?
-
----
-
-## Rocket and CVA6
-
-30. What is Rocket?
-31. Why is Rocket called an in-order processor?
-32. What is CVA6?
-33. Is CVA6 in-order or out-of-order?
-34. Why is CVA6 more sophisticated than a tiny core?
-
----
+12. What is pipelining?
+13. Why does pipelining improve throughput?
+14. What does in-order mean?
+15. What is a data hazard?
+16. What is a control hazard?
+17. What is a structural hazard?
+18. What is forwarding?
+19. Why is branch prediction needed?
+20. What are Rocket and CVA6?
 
 ## Out-of-Order
 
-35. Why do we need out-of-order execution?
-36. What is Instruction-Level Parallelism?
-37. What is register renaming?
-38. What is an issue queue?
-39. What is a reorder buffer?
-40. Why does an out-of-order processor execute instructions out of order but commit them in order?
-41. What is speculative execution?
-42. Why is branch prediction important?
+21. Why do processors use out-of-order execution?
+22. What is Instruction-Level Parallelism?
+23. What is register renaming?
+24. What is an issue queue?
+25. What is a reorder buffer?
+26. Why can execution be out of order but commitment must remain ordered?
+27. What is speculative execution?
+28. What are BOOM and XiangShan?
+
+## Generators and SoC
+
+29. What is a hardware generator?
+30. Why are generators useful?
+31. What is Chisel?
+32. What is Rocket Chip?
+33. What is Chipyard?
+34. What is an SoC?
+35. What is the difference between a CPU core and an SoC?
+36. Why are caches and interconnects needed?
 
 ---
 
-## BOOM and XiangShan
+# 14. Conclusion
 
-43. What is BOOM?
-44. What makes BOOM different from Rocket?
-45. What is XiangShan?
-46. Why are BOOM and XiangShan considered more sophisticated processors?
+The central idea of this study is:
 
----
+> **RISC-V defines the contract; microarchitecture defines how that contract is implemented.**
 
-## Generators
-
-47. What is a hardware generator?
-48. Why are hardware generators useful?
-49. What is Chisel?
-50. What is Rocket Chip?
-51. What is Chipyard?
-
----
-
-## SoC
-
-52. What is an SoC?
-53. What is the difference between a CPU core and an SoC?
-54. Why does a CPU need memory?
-55. Why do we need caches?
-56. What does an interconnect do?
-57. What are peripherals?
-58. How does a CPU communicate with peripherals?
-
----
-
-# 16. Conclusion
-
-The most important idea from this study is:
-
-> **RISC-V defines the contract, while microarchitecture defines the implementation of that contract.**
-
-The same RISC-V ISA can be implemented using dramatically different hardware.
+The same ISA can therefore be implemented using radically different designs:
 
 ```text
-                    RISC-V ISA
-                        |
-                        ↓
-              "What should happen?"
-                        |
-                        ↓
-               Microarchitecture
-                        |
-       +----------------+----------------+
-       |                |                |
-       ↓                ↓                ↓
-     Tiny           In-Order        Out-of-Order
-       |                |                |
-     SERV         Rocket / CVA6     BOOM / XiangShan
-       |                |                |
-       +----------------+----------------+
-                        |
-                        ↓
-                   Generators
-                        |
-                        ↓
-                Rocket Chip / Chipyard
-                        |
-                        ↓
-                       SoC
+                         RISC-V ISA
+                              |
+                              ↓
+                    "What should happen?"
+                              |
+                              ↓
+                     Microarchitecture
+                              |
+        +---------------------+---------------------+
+        |                     |                     |
+        ↓                     ↓                     ↓
+      Tiny                In-Order            Out-of-Order
+        |                     |                     |
+      SERV              Rocket / CVA6        BOOM / XiangShan
+        |                     |                     |
+        +---------------------+---------------------+
+                              |
+                              ↓
+                         Generators
+                              |
+                              ↓
+                     Rocket Chip / Chipyard
+                              |
+                              ↓
+                             SoC
 ```
 
-The progression can therefore be summarized as:
+The progression can be remembered as:
 
 ```text
 SERV
  ↓
 Minimum hardware
- ↓
+
 PicoRV32
  ↓
-Small practical processor
- ↓
+Small practical CPU
+
 Rocket / CVA6
  ↓
-Pipelined in-order processor
- ↓
+Pipelined in-order execution
+
 BOOM / XiangShan
  ↓
-Out-of-order high-performance processor
- ↓
+Out-of-order execution and high performance
+
 Rocket Chip / Chipyard
  ↓
 Configurable hardware systems
- ↓
+
 SoC
+ ↓
+Complete computer system
 ```
 
-The fundamental question changes at every level:
+The important question at each stage is:
 
 ```text
 SERV
-"What is the smallest hardware I can build?"
+"What is the smallest implementation?"
 
         ↓
 
 PicoRV32
-"How can I build a small practical CPU?"
+"How can I make a small practical CPU?"
 
         ↓
 
@@ -2060,21 +1568,16 @@ Rocket / CVA6
         ↓
 
 BOOM / XiangShan
-"How can I exploit as much instruction-level
-parallelism as possible?"
+"How can I exploit instruction-level parallelism?"
 
         ↓
 
 Generators
-"How can I generate different hardware configurations?"
+"How can I create configurable hardware?"
 
         ↓
 
 SoC
-"How can I turn the CPU into a complete system?"
-```
+"How do I turn the processor into a complete system?"
 
-That progression is the core idea behind this study of **real RISC-V microarchitecture**.
-
----
 
