@@ -1097,7 +1097,7 @@ Generated RTL
        ↓
 Verilog
 ```
-
+Chisel is a hardware construction language that provides abstractions and programming features for building parameterized hardware, and its compiler generates Verilog RTL.
 Chisel makes it easier to describe reusable and parameterized hardware.
 
 This is especially useful for processor generators.
