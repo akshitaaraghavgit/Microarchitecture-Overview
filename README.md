@@ -919,6 +919,7 @@ I1 → I3 → I2
 If results were permanently committed in execution order, the architectural state could become incorrect.
 
 The **Reorder Buffer (ROB)** tracks instructions in program order.
+- ROB (Reorder Buffer) is a structure used in out-of-order CPUs to make sure that, even if instructions execute out of order, their results are committed/retired in the original program order.
 
 Therefore:
 
