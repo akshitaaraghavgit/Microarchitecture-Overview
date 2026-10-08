@@ -854,7 +854,8 @@ Architectural x1
        |
        +----→ P12
 ```
-
+- A physical register is an actual storage location inside the CPU that holds a value temporarily while instructions are executing.
+- These are architectural registers
 This is called **register renaming**.
 
 It helps remove false dependencies and allows more instructions to execute independently.
