@@ -228,6 +228,7 @@ then:
 
 Therefore, reducing CPI can increase MIPS without increasing the clock frequency.
 
+- An instruction on one ISA does different work from one on another
 ---
 
 ## 4.3 Why MIPS Can Be Misleading
