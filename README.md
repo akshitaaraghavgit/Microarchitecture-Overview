@@ -824,6 +824,8 @@ Possible execution order:
 The processor is exploiting **Instruction-Level Parallelism (ILP)**.
 
 ---
+<img width="1479" height="596" alt="Screenshot 2026-10-08 020148" src="https://github.com/user-attachments/assets/ecfbb803-89ed-4614-874d-3cbdd7a03b6e" />
+
 
 # 7.2 Register Renaming
 
