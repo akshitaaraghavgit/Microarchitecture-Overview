@@ -239,8 +239,8 @@ The major problem with MIPS is:
 
 Imagine:
 
-    CPU A → 1 billion instructions
-    CPU B → 500 million instructions
+    CPU A → 4 GHz
+    CPU B → 3 GHz
 
 The two CPUs may perform the same high-level task using different numbers of instructions.
 
