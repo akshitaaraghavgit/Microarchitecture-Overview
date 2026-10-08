@@ -1180,7 +1180,7 @@ SoC
 
 A CPU core is only one component of a complete computer system.
 
-An **SoC (System-on-Chip)** combines the processor with memory, communication infrastructure and peripherals.
+An **SoC (System-on-Chip)** combines the processor with memory, communication infrastructure and peripherals(used for output input)
 
 ```text
 +------------------------------------------------+
